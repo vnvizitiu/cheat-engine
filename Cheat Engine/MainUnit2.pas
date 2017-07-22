@@ -24,7 +24,7 @@ procedure initcetitle;
 
 
 
-const beta=' Beta 2'; //empty this for a release
+const beta=''; //empty this for a release
 
 var
   CEnorm:string;
@@ -725,6 +725,9 @@ begin
 
           if reg.ValueExists('Always Sign Table') then
             cbAlwaysSignTable.Checked:=reg.readBool('Always Sign Table');
+
+          if reg.ValueExists('Always Ask For Password') then
+            cbAlwaysAskForPassword.Checked:=reg.readBool('Always Ask For Password');
 
         end;
 

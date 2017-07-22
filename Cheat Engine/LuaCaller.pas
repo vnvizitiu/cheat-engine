@@ -340,6 +340,8 @@ begin
   end;
 
   lua_pcall(syncvm, paramcount,1,0);
+
+  free;
 end;
 
 procedure TLuaCaller.SelectionChangeEvent(Sender: TObject; User: boolean);
@@ -1087,7 +1089,8 @@ begin
       if context<>nil then
       begin
         PushFunction;
-        result:=LUA_onBreakpoint(context, true);
+
+        result:=LUA_onBreakpoint(0,context, true);
       end;
     end;
   finally

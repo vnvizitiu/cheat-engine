@@ -6,6 +6,7 @@ MainForm: The main ce gui
 AddressList: The address list of the main ce gui
 
 getCEVersion(): Returns a floating point value specifying the version of cheat engine
+getCheatEngineFileVersion(): Returns the full version data of the cheat engine version. A raw integer, and a table containing major, minor, release and build
 
 
 activateProtection(): Prevents basic memory scanners from opening the cheat engine process
@@ -162,6 +163,9 @@ registerEXETrainerFeature(FeatureName:String, function():table): adds a new feat
     [2]: 
       PathToFile=c:\cefolder\autorun\dlls\mycode.lua
       RelativePath="autorun\mylib.dll"
+
+Note: This runs AFTER the table has been packaged already
+
                   
 unregisterEXETrainerFeature(id)
 
@@ -251,6 +255,9 @@ getWindowlist(Strings): Fills a Strings inherited object with the top-window lis
 getWindowlist(): Returns a table with the windowlist (pid - window caption )
 
 getThreadlist(List): fills a List object with the threadlist of the currently opened process. Format: %x
+getHandleList(filter OPTIONAL): returns a table with all the handles in the system(Filter 0=everything, 1=target process handles only, 2 handles to target process, 3 handles to ce process).  Each handle entry has fields: ProcessID, ObjectTypeIndex, HandleAttributes, HandleValue, Object and GrantedAccess.  Note: Object will be invalid if you use the 32-bit CE on a 64-bit windows
+
+closeRemoteHandle(handle, processid OPTIONAL): Closes the handle of a process.
 
 
 function onOpenProcess(processid):
@@ -272,6 +279,9 @@ unpause(): resumes the current opened process
 
 
 getCPUCount(): Returns the number of CPU's
+
+getSystemMetrics(index): Retrieves the specified system metric or system configuration setting
+(https://msdn.microsoft.com/en-us/library/windows/desktop/ms724385.aspx)
 
 getScreenHeight(): Returns the screen height
 getScreenWidth(): Returns the screen  width
@@ -310,7 +320,7 @@ integerToUserData(int):  Converts a given integer to a userdata variable
 userDataToInteger(UserDataVar):  Converts a given userdata variable to an integer
 
 synchronize(function(...), ...): Calls the given function from the main thread. Returns the return value of the given function
-queue(function(...),...): calls the given function from the main thread. Does not wait for the result
+queue(function(...),...): calls the given function from the main thread. Does not wait for the result. Note: Be sure to synchronize and call checkSynchronize() before freeing the calling thread
 checkSynchronize(): Call this from an infinite loop in the main thread when using threading and synchronize calls. This will execute any queued synchronize calls
 
 writeToClipboard(text):  Writes the given text to the clipboard
@@ -393,6 +403,7 @@ targetIs64Bit(): Returns true if the target process is 64-bit, false if 32-bit
 
 
 getCheatEngineDir(): Returns the folder Cheat Engine is located at
+getCheatEngineProcessID(): Returns the processid of cheat engine
 
 disassemble(address): Disassembles the given address and returns a string in the format of "address - bytes - opcode : extra"
 splitDisassembledString(disassembledstring): Returns 4 strings. The address, bytes, opcode and extra field
@@ -412,7 +423,7 @@ speakEnglish(text, waittilldone OPTIONAL) - will try the English voice by wrappi
 
 getUserRegistryEnvironmentVariable(name): string - Returns the environment variable stored in the user registry environment
 setUserRegistryEnvironmentVariable(name, string) - Sets the environment variable stored in the user registry environment
-broadcastEnvironmentUpdate() : Call this when you've changed the environment variables in the registry. This will cause at least the shell to update so you don't have to reboot. (It's always recommended to reboot though)
+is when you've changed the environment variables in the registry. This will cause at least the shell to update so you don't have to reboot. (It's always recommended to reboot though)
 
 stringToMD5String(string): Returns an md5 hash string from the provided string
 
@@ -538,7 +549,7 @@ debug_addThreadToNoBreakList(threadid): This will cause breakpoints on the provi
 debug_removeThreadFromNoBreakList(threadid): removed the threadid from the list
 
 
-debug_setBreakpoint(address, size OPTIONAL, trigger OPTIONAL, breakpointmethod OPTIONAL, functiontocall() OPTIONAL) : sets a breakpoint of a specific size at the given address. if trigger is bptExecute then size is ignored. If trigger is ignored then it will be of type bptExecute, which obviously also ignores the size then as well
+debug_setBreakpoint(address, size OPTIONAL, trigger OPTIONAL, breakpointmethod OPTIONAL, functiontocall() OPTIONAL) : sets a breakpoint of a specific size at the given address. if trigger is bptExecute then size is ignored. If trigger is ignored then it will be of type bptExecute, which obviously also ignores the size then as well.  (Other triggers are bptAccess and bptWrite)
 debug_setBreakpoint(address, size OPTIONAL, trigger OPTIONAL, functiontocall() OPTIONAL) 
 debug_setBreakpoint(address, functiontocall() OPTIONAL)
 debug_removeBreakpoint(address) : if the given address is a part of a breakpoint it will be removed
@@ -790,6 +801,7 @@ createPopupMenu(owner)
 
 Strings Class: (Inheritance : Object) (Mostly an abstract class)
 properties
+  LineBreak: String - the character(s) to count as a linebreak
   Text : String - All the strings in one string
   Count: Integer - The number of strings in this list
   String[]: String - Array to access one specific string in the list
@@ -1125,6 +1137,7 @@ methods
   getItemIndex()
   setItemIndex(integer)
   getCanvas()
+  getExtraWidth() : Returns the number of pixels not part of the text of the combobox (think about borders, thumb button, etc...)
 
 
 
@@ -1262,6 +1275,8 @@ methods
   getCount()
   getItem(integer) : Return the listitem object at the given index
   add(): Returns a new ListItem object
+  displayRect(code): returns the displayed rectangle of the listitem. code can be: drBounds(0), drIcon(1), drLabel(2), drSelectBounds(3)
+  displayRectSubItem(code): returns the displayed rectangle of the listitem. code can be: drBounds(0), drIcon(1), drLabel(2), drSelectBounds(3)
 
 
 
@@ -2059,12 +2074,12 @@ methods
 
 
 Thread Class: (Inheritance: Object)
-createNativeThread(function(Thread,...), ...) :
+createThread(function(Thread,...), ...) :
   Executes the given function in another thread using the systems thread mechanism
   The function returns the Thread class object
   function declaration: function (Thread, ...)
 
-createNativeThreadSuspended(function(Thread,...), ...) :
+createThreadSuspended(function(Thread,...), ...) :
   Same as createNativeThread but it won't run until resume is called on it
 
 
@@ -2690,7 +2705,7 @@ methods
 
 Internet class (Object)
 global functions
-  getInternet(string) - Returns an internet class object
+  getInternet(string) - Returns an internet class object.  The string provided will be the name of the client provided
 
 properties
   Header : string - the additional header to be sent with the next getURL request

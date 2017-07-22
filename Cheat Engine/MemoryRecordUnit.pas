@@ -597,6 +597,12 @@ begin
     funparsed:=false;
     exit;
   except
+    foffset:=symhandler.getAddressFromNameShallow(s, false, e);
+    if not e then
+    begin
+      funparsed:=false;
+      exit;
+    end;
   end;
 
 
@@ -817,7 +823,15 @@ begin
   begin
     mr:=getlinkedDropDownMemrec;
     if mr<>nil then
-      exit(mr.getCurrentDropDownIndex)
+      begin
+        result:=-1;
+        for i:=0 to mr.DropDownCount-1 do
+        begin
+          if lowercase(Value)=lowercase(mr.DropDownValue[i]) then
+            result:=i;
+        end;
+        exit;
+      end
     else
       exit(-1);
   end;
@@ -2255,7 +2269,7 @@ begin
   if state=fActive then exit; //no need to execute this is it's the same state
   if processingThread<>nil then exit; //don't change the state while processing
 
-  outputdebugstring('setting active state with description:'+description+' to '+BoolToStr(state,true));
+ // outputdebugstring('setting active state with description:'+description+' to '+BoolToStr(state,true));
 
 { deprecated
 
@@ -2335,7 +2349,7 @@ begin
         try
 
           SetValue(f);
-          OutputDebugString('SetValue returned');
+         // OutputDebugString('SetValue returned');
 
         except
 
@@ -2594,14 +2608,14 @@ begin
 
   c:=DropDowncount;
 
-  if fDisplayAsDropDownListItem and (c>0) then
+  if getDisplayAsDropDownListItem and (c>0) then
   begin
     //convert the value to a dropdown list item value
     for i:=0 to c-1 do
     begin
       if uppercase(utf8toansi(DropDownValue[i]))=uppercase(result) then
       begin
-        if fDropDownDescriptionOnly then
+        if getDropDownDescriptionOnly then
           result:=utf8toansi(DropDownDescription[i])
         else
           result:=result+' : '+utf8toansi(DropDownDescription[i]);

@@ -281,6 +281,8 @@ type
     procedure setNewParent(group: TStructGroup);
 
     function getName: string;
+
+    procedure setAnchorsForPos(i: integer);
   public
     currentNodeAddress: string;    //temporary storage for rendering
     currentNodeValue: string;
@@ -2153,18 +2155,33 @@ begin
 end;
 
 procedure TStructColumn.setNewParent(group: TStructGroup);
+var i: integer;
+   oldparent: TStructGroup;
 begin
+  oldparent:=parent;
+  i:=parent.fcolumns.IndexOf(self);
+
   parent.fcolumns.Remove(self);
+
+  if i<parent.fcolumns.Count then
+    TStructColumn(parent.fcolumns[i]).setAnchorsForPos(i);
 
   if parent.fcolumns.Count=0 then //group has 0 entries , destroy the group
     parent.Free;
 
 
+
   parent:=group;
-  parent.fcolumns.Add(self);
+  i:=parent.fcolumns.Add(self);
 
   edtAddress.parent:=group.box;
   focusedShape.parent:=group.box;
+  if lblname<>nil then
+    lblName.parent:=group.box;
+
+  setAnchorsForPos(i);
+
+
 
   group.setPositions; //update the gui
 end;
@@ -2546,6 +2563,50 @@ begin
 
 end;
 
+procedure TStructColumn.setAnchorsForPos(i: integer);
+begin
+  if i=0 then
+  begin
+    edtAddress.AnchorSideTop.control:=parent.box;
+    edtAddress.AnchorSideTop.side:=asrTop;
+    edtAddress.BorderSpacing.Top:=4;
+
+    edtAddress.AnchorSideLeft.control:=parent.box;
+    edtAddress.AnchorSideLeft.side:=asrLeft;
+    edtAddress.BorderSpacing.Left:=4;
+  end
+  else
+  begin
+    edtAddress.AnchorSideTop.control:=parent.columns[i-1].edtAddress;
+    edtAddress.AnchorSideTop.side:=asrTop;
+    edtAddress.BorderSpacing.Top:=0;
+
+    edtAddress.AnchorSideLeft.control:=parent.columns[i-1].edtAddress;
+    edtAddress.AnchorSideLeft.side:=asrRight;
+    edtAddress.BorderSpacing.Left:=4;
+  end;
+
+
+
+  if focusedShape<>nil then
+  begin
+    focusedShape.AnchorSideLeft.Control:=edtAddress;
+    focusedShape.AnchorSideLeft.Side:=asrCenter;
+    focusedShape.AnchorSideTop.Control:=edtAddress;
+    focusedShape.AnchorSideTop.Side:=asrCenter;
+  end;
+
+  if lblname<>nil then
+  begin
+    lblname.AnchorSideTop.Control:=edtAddress;
+    lblname.AnchorSideTop.Side:=asrBottom;
+    lblname.AnchorSideLeft.control:=edtAddress;
+    lblname.AnchorSideLeft.side:=asrCenter;
+  end;
+
+
+end;
+
 constructor TStructColumn.create(parent: TStructGroup);
 var hsection: THeaderSection;
   s: TMenuItem;
@@ -2635,32 +2696,10 @@ begin
   edtAddress.Parent:=parent.box;
   edtAddress.OnMouseDown:=edtaddressMousedown;
 
-  if i=0 then
-  begin
-    edtAddress.AnchorSideTop.control:=parent.box;
-    edtAddress.AnchorSideTop.side:=asrTop;
-    edtAddress.BorderSpacing.Top:=4;
-
-    edtAddress.AnchorSideTop.control:=parent.box;
-    edtAddress.AnchorSideTop.side:=asrLeft;
-    edtAddress.BorderSpacing.Left:=4;
-  end
-  else
-  begin
-    edtAddress.AnchorSideTop.control:=parent.columns[i-1].edtAddress;
-    edtAddress.AnchorSideTop.side:=asrTop;
-    edtAddress.AnchorSideLeft.control:=parent.columns[i-1].edtAddress;
-    edtAddress.AnchorSideLeft.side:=asrRight;
-    edtAddress.BorderSpacing.Left:=4;
-  end;
-
+ // setAnchorsForPos(i);
   edtAddress.BorderSpacing.Bottom:=3;
   edtAddress.BorderSpacing.Right:=4;
 
-  focusedShape.AnchorSideLeft.Control:=edtAddress;
-  focusedShape.AnchorSideLeft.Side:=asrCenter;
-  focusedShape.AnchorSideTop.Control:=edtAddress;
-  focusedShape.AnchorSideTop.Side:=asrCenter;
 
   if WindowsVersion>=wvVista then
   begin
@@ -2688,10 +2727,8 @@ begin
   lblName.parent:=edtAddress.Parent;
   lblName.Alignment:=taCenter;
   lblName.visible:=false;
-  lblname.AnchorSideTop.Control:=edtAddress;
-  lblname.AnchorSideTop.Side:=asrBottom;
-  lblname.AnchorSideLeft.control:=edtAddress;
-  lblname.AnchorSideLeft.side:=asrCenter;
+
+  setAnchorsForPos(i);
 
   parent.setPositions;
   Address:=MemoryBrowser.hexview.address;
@@ -2887,8 +2924,19 @@ end;
 
 destructor TStructGroup.destroy;
 var i: integer;
+  g: tgroupbox;
 begin
   //delete all the columns first
+  i:=parent.fgroups.IndexOf(self);
+  if i<parent.fgroups.count-1 then
+  begin
+    //has stuff right of it
+    g:=TStructGroup(parent.fgroups[i+1]).GroupBox;
+
+    g.AnchorSideTop:=groupbox.AnchorSideTop;
+    g.AnchorSideLeft:=groupbox.AnchorSideLeft;
+    g.BorderSpacing.Left:=groupbox.BorderSpacing.Left;
+  end;
 
   parent.fgroups.Remove(self);
 
@@ -2952,6 +3000,7 @@ begin
 
   tvStructureView.onHScroll:=TreeViewHScroll;
   tvStructureView.onVScroll:=TreeViewVScroll;
+
 
   frmStructures2.Add(self);
 

@@ -1,10 +1,15 @@
 /*
  cepluginsdk.h
- Updated May 14, 2012
+ Updated July 4, 2017
 
- v4.0.0
+ v5.0.0
 */
 #include <windows.h>
+#include "lua.h"
+#include "lualib.h"
+#include "lauxlib.h"
+
+
 #define CESDK_VERSION 6
 
 typedef enum {ptAddressList=0, ptMemoryView=1, ptOnDebugEvent=2, ptProcesswatcherEvent=3, ptFunctionPointerchange=4, ptMainMenu=5, ptDisassemblerContext=6, ptDisassemblerRenderLine=7, ptAutoAssembler=8} PluginType;
@@ -254,6 +259,7 @@ typedef VOID (__stdcall *CEP_OBJECT_DESTROY)(PVOID object);
 
 typedef int (__stdcall *CEP_MESSAGEDIALOG)(char *massage, int messagetype, int buttoncombination);
 typedef BOOL (__stdcall *CEP_SPEEDHACK_SETSPEED)(float speed);
+typedef lua_State *(__fastcall *CEP_GETLUASTATE)();
 
 /*
 function ce_messageDialog(message: pchar; messagetype: integer; buttoncombination: integer): integer; stdcall;
@@ -351,13 +357,13 @@ typedef struct _ExportedFunctions
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
   //advanced for delphi 7 enterprise dll programmers only
-  PVOID mainform; //pointer to the Tmainform object. (main window) Compatible with TFORM of D7 Enterprise
+  PVOID mainform; //pointer to the Tmainform object.
   PVOID memorybrowser; //pointer to the TMemoryBrowser object (memory view windows), same as mainform
 
   //Plugin Version 2+
-  CEP_GENERATEAPIHOOKSCRIPT sym_nameToAddress;
+  CEP_NAMETOADDRESS sym_nameToAddress;
   CEP_ADDRESSTONAME sym_addressToName;
-  CEP_NAMETOADDRESS sym_generateAPIHookScript;
+  CEP_GENERATEAPIHOOKSCRIPT sym_generateAPIHookScript;
 
   //Plugin version 3+
   CEP_LOADDBK32 loadDBK32;
@@ -440,7 +446,7 @@ typedef struct _ExportedFunctions
 //V5: Todo, implement function declarations
   VOID *ExecuteKernelCode;
   VOID *UserdefinedInterruptHook;
-  VOID *GetLuaState;
+  CEP_GETLUASTATE GetLuaState;
   VOID *MainThreadCall;
 
 } ExportedFunctions, *PExportedFunctions;

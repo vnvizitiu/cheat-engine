@@ -21,6 +21,8 @@ type
     GroupBox1: TGroupBox;
     MenuItem12: TMenuItem;
     MenuItem13: TMenuItem;
+    miSaveCurrentScriptAs: TMenuItem;
+    miShowScriptInOutput: TMenuItem;
     miResizeOutput: TMenuItem;
     miSetBreakpoint: TMenuItem;
     miRun: TMenuItem;
@@ -75,6 +77,7 @@ type
     procedure MenuItem8Click(Sender: TObject);
     procedure MenuItem9Click(Sender: TObject);
     procedure miResizeOutputClick(Sender: TObject);
+    procedure miSaveCurrentScriptAsClick(Sender: TObject);
     procedure miSetBreakpointClick(Sender: TObject);
     procedure mScriptChange(Sender: TObject);
     procedure mScriptGutterClick(Sender: TObject; X, Y, Line: integer;
@@ -118,6 +121,7 @@ resourcestring
   rsLEUndefinedError = 'Undefined error';
   rsLEOnlyOneScriptCanBeDebuggedAtATimeEtc = 'Only one script can be debugged at a time. Continue executing this script without the debugger?';
   rsLEUserClickedStop = 'User clicked stop';
+  rsLuaEngine = 'Lua Engine';
 
 var
   LuaDebugForm: TfrmLuaEngine;
@@ -799,7 +803,8 @@ begin
 
   oldprintoutput:=lua_oldprintoutput;
   try
-    mOutput.lines.add(mscript.text);
+    if miShowScriptInOutput.checked then
+      mOutput.lines.add(mscript.text);
 
 
     lua_setPrintOutput(mOutput.lines);
@@ -936,7 +941,7 @@ begin
   {if mscript.SelAvail then     todo: Try to get this to work in all cases
     so:=so+[ssoSelectedOnly];  }
 
-  mscript.SearchReplace(dlgReplace.FindText,'',so);
+  mscript.SearchReplace(TFindDialog(sender).FindText,'',so);
 end;
 
 procedure TfrmLuaEngine.dlgReplaceReplace(Sender: TObject);
@@ -988,6 +993,9 @@ begin
     begin
       miResizeOutput.checked:=x[1]=1;
       miResizeOutput.OnClick(miResizeOutput);
+
+      if length(x)>2 then
+       miShowScriptInOutput.checked:=x[2]=1;
     end;
   end;
 end;
@@ -995,7 +1003,7 @@ end;
 procedure TfrmLuaEngine.FormDestroy(Sender: TObject);
 begin
 
-  SaveFormPosition(self, [panel1.height, integer(ifthen(miResizeOutput.checked, 1,0))]);
+  SaveFormPosition(self, [panel1.height, integer(ifthen(miResizeOutput.checked, 1,0)), integer(ifthen(miShowScriptInOutput.checked, 1,0))]);
 end;
 
 procedure TfrmLuaEngine.FormShow(Sender: TObject);
@@ -1035,7 +1043,9 @@ end;
 
 procedure TfrmLuaEngine.MenuItem3Click(Sender: TObject);
 begin
-  if savedialog1.execute then
+  if savedialog1.FileName='' then
+    miSaveCurrentScriptAs.Click
+  else
     mscript.lines.SaveToFile(savedialog1.filename);
 end;
 
@@ -1086,6 +1096,15 @@ begin
     groupbox1.align:=alClient;
     //splitter1.ResizeControl:=panel1;
     splitter1.Align:=alBottom;
+  end;
+end;
+
+procedure TfrmLuaEngine.miSaveCurrentScriptAsClick(Sender: TObject);
+begin
+  if savedialog1.Execute then
+  begin
+    mscript.lines.SaveToFile(savedialog1.filename);
+    frmLuaEngine.Caption:=rsLuaEngine+' '+ExtractFileNameOnly(savedialog1.filename);
   end;
 end;
 

@@ -37,7 +37,7 @@ const
   wm_freedebugger = WM_USER + 1;
 
 const
-  wm_scandone = WM_USER + 2;
+  //wm_scandone = WM_USER + 2;
   wm_pluginsync = WM_USER + 3;
 
   wm_showerror = WM_USER + 4;
@@ -441,9 +441,9 @@ type
     MainMenu1: TMainMenu;
     File1: TMenuItem;
     Process1: TMenuItem;
-    Help1: TMenuItem;
+    miHelp: TMenuItem;
     Edit3: TMenuItem;
-    About1: TMenuItem;
+    miAbout: TMenuItem;
     OpenProcess1: TMenuItem;
     Save1: TMenuItem;
     Load1: TMenuItem;
@@ -657,7 +657,7 @@ type
     procedure btnSetSpeedhack2Click(Sender: TObject);
     procedure cbSpeedhackChange(Sender: TObject);
     procedure Process1Click(Sender: TObject);
-    procedure About1Click(Sender: TObject);
+    procedure miAboutClick(Sender: TObject);
     procedure CreateProcess1Click(Sender: TObject);
     procedure Helpindex1Click(Sender: TObject);
     procedure New1Click(Sender: TObject);
@@ -738,7 +738,7 @@ type
     procedure checkpaste;
     procedure hotkey(var Message: TMessage); message WM_HOTKEY;
     procedure Hotkey2(var Message: TMessage); message wm_hotkey2;
-    procedure ScanDone(var message: TMessage); message WM_SCANDONE;
+    procedure ScanDone(sender: TObject); //(var message: TMessage); message WM_SCANDONE;
     procedure PluginSync(var m: TMessage); message wm_pluginsync;
     procedure ShowError(var message: TMessage); message wm_showerror;
     procedure Edit;
@@ -921,6 +921,8 @@ type
     property SelectedVariableType: TVariableType read getSelectedVariableType;
     property isProtected: boolean read fIsProtected write setIsProtected;
     property Progressbar1: TProgressBar read Progressbar write ProgressBar;
+    property About1: TMenuItem read miAbout write miAbout;
+    property Help1: TMenuItem read miHelp write miHelp;
   end;
 
 var
@@ -1137,6 +1139,8 @@ resourcestring
   rsFailureSettingTheCreateGlobalPrivilege = 'Failure setting the CreateGlobal privilege.';
   rsCurrentProcess = 'Current process';
   rsNone = '<none>';
+  rsBusy = '<busy>';
+  rsFileInUse = '<File in use>';
   rsCEError = 'CE Error:';
   rsPart = ' part ';
   rsChangeValue = 'Change value';
@@ -1152,6 +1156,7 @@ resourcestring
   rsChooseLanguage = 'Which language do you wish to use?';
   rsInvalidScanFolder = '%s is not accessible like it should.  Please '
     +'configure a proper location in the settings';
+  rsProcessing = '<Processing>';
 
 var
   ncol: TColor;
@@ -1243,10 +1248,7 @@ begin
     FreeAndNil(changescript1);
 
     frmLuaTableScript.assemblescreen.ClearAll;
-
-    frmLuaTableScript.Free;
-    frmLuaTableScript:=TfrmAutoInject(tcustomform(mainform));
-
+    frmLuaTableScript.assemblescreen.Text:='wut?';
   end;
 end;
 
@@ -2003,6 +2005,12 @@ begin
     Hint := rsThisButtonWillTryToCancelTheCurrentScanClickTwiceT;
     ParentShowHint := False;
     ShowHint := True;
+
+
+    cancelbutton.Anchors:=[];
+    cancelbutton.AnchorSideLeft.Control:=btnNewScan;
+    cancelbutton.AnchorSideLeft.Side:=asrLeft;
+    cancelbutton.Anchors:=[akLeft, akTop];
 
     parent := panel5;
   end;
@@ -4273,7 +4281,8 @@ begin
     scanstate.memscan.GuiScanner:=true;
     scanstate.memscan.OnGuiUpdate:=MemscanGuiUpdate;
     scanstate.foundlist := TFoundList.Create(foundlist3, scanstate.memscan);    //build again
-    scanstate.memscan.setScanDoneCallback(mainform.handle, wm_scandone);
+    scanstate.memscan.OnInitialScanDone:=memscan.OnInitialScanDone;
+    scanstate.memscan.OnScanDone:=memscan.OnScanDone;
   end;
 
   savecurrentstate(scanstate);
@@ -5348,7 +5357,7 @@ end;
 
 procedure TMainForm.ChangedHandle(Sender: TObject);
 begin
-  memscan.setScanDoneCallback(mainform.handle, wm_scandone);
+ // memscan.setScanDoneCallback(mainform.handle, wm_scandone);
 
   //reset the hotkeys
   hotkeyTargetWindowHandleChanged(oldhandle, mainform.handle);
@@ -7247,10 +7256,10 @@ begin
   memscan := tmemscan.Create(ProgressBar);
   memscan.GuiScanner:=true;
   memscan.OnGuiUpdate:=MemscanGuiUpdate;
+  memscan.OnInitialScanDone:=scandone;
+
   foundlist := tfoundlist.Create(foundlist3, memscan);
 
-  //don't put this in oncreate, just don't
-  memscan.setScanDoneCallback(mainform.handle, wm_scandone);
 
   logo.Width:=settingsbutton.width;
 
@@ -7622,6 +7631,7 @@ end;
 procedure TMainForm.SettingsClick(Sender: TObject);
 var
   oldmodulelist: pointer;
+  oldScanDone, oldInitialScanDone: TNotifyEvent;
 begin
 
   suspendhotkeyhandler;
@@ -7658,12 +7668,22 @@ begin
   begin
     //memscan can be reset
     if memscan <> nil then
+    begin
+      oldScanDone:=memscan.OnScanDone;
+      oldInitialScanDone:=memscan.OnInitialScanDone;
       memscan.Free;
+    end
+    else
+    begin
+      oldScanDone:=nil;
+      oldInitialScanDone:=scanDone;
+    end;
 
     memscan := tmemscan.Create(ProgressBar);
     memscan.GuiScanner:=true;
     memscan.OnGuiUpdate:=memscanGuiUpdate;
-    memscan.setScanDoneCallback(mainform.handle, wm_scandone);
+    memscan.OnScanDone:=oldScanDone;
+    memscan.OnInitialScanDone:=oldInitialScanDone;
   end;
 end;
 
@@ -7676,7 +7696,7 @@ procedure TMainForm.LogoMouseDown(Sender: TObject; Button: TMouseButton;
   Shift: TShiftState; X, Y: integer);
 begin
   if button = mbright then
-    about1.click;
+    miAbout.click;
 end;
 
 procedure TMainForm.btnShowRegionsClick(Sender: TObject);
@@ -8362,6 +8382,16 @@ begin
   try
     valuetype:=foundlist.vartype;
     address := foundlist.GetAddress(item.Index, extra, Value);
+
+    if (address=0) then
+    begin
+      item.Caption := rsProcessing;
+      item.subitems.add(rsProcessing);
+      item.subitems.add(rsProcessing);
+      exit;
+    end;
+
+
     AddressString:=IntToHex(address,8);
 
     hexadecimal:=foundlist.isHexadecimal;
@@ -8457,7 +8487,12 @@ begin
       begin
         p:=PreviousResults.getpointertoaddress(address, ssvt, ct);
         if p=nil then
-          previousvalue:=rsNone
+        begin
+          if PreviousResults.lastFail=1 then
+            previousvalue:=rsFileInUse
+          else
+            previousvalue:=rsBusy+' : '+inttostr(PreviousResults.lastFail)
+        end
         else
           previousvalue:=readAndParsePointer(address, p, valuetype, ct, hexadecimal, foundlist.isSigned);
       end;
@@ -8874,7 +8909,7 @@ begin
   end;
 end;
 
-procedure TMainForm.ScanDone(var message: TMessage);
+procedure TMainForm.ScanDone(sender: TObject);
 var
   i: integer;
   canceled: boolean;
@@ -8899,18 +8934,15 @@ begin
   SetProgressState(tbpsNone);
 
 
+  error:=tmemscan(sender).hasError;
 
-
-  if message.wparam > 0 then
+  if tmemscan(sender).hasError then
   begin
+    error:=true;
     messagedlg(Format(rsScanError, [memscan.GetErrorString]), mtError, [mbOK], 0);
-    error := True;
   end
   else
-    error := False;
-
-  {  else}
-  //  showmessage('SCAN SUCCES. time='+inttostr(after-before));
+    error:=false;
 
 
   enablegui(memscan.LastScanType = stNextScan);
@@ -9384,7 +9416,7 @@ end;
 
 
 {^^^^^^^^Processlist menuitem^^^^^^^^}
-procedure TMainForm.About1Click(Sender: TObject);
+procedure TMainForm.miAboutClick(Sender: TObject);
 begin
   About := TAbout.Create(self);
   About.showmodal;

@@ -317,34 +317,47 @@ var
   i: integer;
   s: tstringlist;
   pref: string;
+  digits: integer;
 begin
   s:=TStringList.create;
 
-  if processhandler.is64bit then
-    pref:='R' else pref:='E';
 
-  s.add(pref+'AX='+inttohex(context.{$ifdef cpu64}Rax{$else}Eax{$endif},8));
-  s.add(pref+'BX='+inttohex(context.{$ifdef cpu64}Rbx{$else}Ebx{$endif},8));
-  s.add(pref+'CX='+inttohex(context.{$ifdef cpu64}Rcx{$else}Ecx{$endif},8));
-  s.add(pref+'DX='+inttohex(context.{$ifdef cpu64}Rdx{$else}Edx{$endif},8));
-  s.add(pref+'SI='+inttohex(context.{$ifdef cpu64}Rsi{$else}Esi{$endif},8));
-  s.add(pref+'DI='+inttohex(context.{$ifdef cpu64}Rdi{$else}Edi{$endif},8));
-  s.add(pref+'BP='+inttohex(context.{$ifdef cpu64}Rbp{$else}Ebp{$endif},8));
-  s.add(pref+'SP='+inttohex(context.{$ifdef cpu64}Rsp{$else}Esp{$endif},8));
+
+
+  if processhandler.is64bit then
+  begin
+    pref:='R';
+    digits:=16;
+  end
+  else
+  begin
+    pref:='E';
+    digits:=8;
+  end;
+
+  s.add(pref+'AX='+inttohex(context.{$ifdef cpu64}Rax{$else}Eax{$endif},digits));
+  s.add(pref+'BX='+inttohex(context.{$ifdef cpu64}Rbx{$else}Ebx{$endif},digits));
+  s.add(pref+'CX='+inttohex(context.{$ifdef cpu64}Rcx{$else}Ecx{$endif},digits));
+  s.add(pref+'DX='+inttohex(context.{$ifdef cpu64}Rdx{$else}Edx{$endif},digits));
+  s.add(pref+'SI='+inttohex(context.{$ifdef cpu64}Rsi{$else}Esi{$endif},digits));
+  s.add(pref+'DI='+inttohex(context.{$ifdef cpu64}Rdi{$else}Edi{$endif},digits));
+  s.add(pref+'BP='+inttohex(context.{$ifdef cpu64}Rbp{$else}Ebp{$endif},digits));
+  s.add(pref+'SP='+inttohex(context.{$ifdef cpu64}Rsp{$else}Esp{$endif},digits));
+  s.add(pref+'IP='+inttohex(context.{$ifdef cpu64}rip{$else}Eip{$endif},digits));
   {$ifdef cpu64}
   if processhandler.is64Bit then
   begin
-    s.add('R8 ='+inttohex(context.R8,8));
-    s.add('R9 ='+inttohex(context.R9,8));
-    s.add('R10='+inttohex(context.R10,8));
-    s.add('R11='+inttohex(context.R11,8));
-    s.add('R12='+inttohex(context.R12,8));
-    s.add('R13='+inttohex(context.R13,8));
-    s.add('R14='+inttohex(context.R14,8));
-    s.add('R15='+inttohex(context.R15,8));
+    s.add('R8 ='+inttohex(context.R8,16));
+    s.add('R9 ='+inttohex(context.R9,16));
+    s.add('R10='+inttohex(context.R10,16));
+    s.add('R11='+inttohex(context.R11,16));
+    s.add('R12='+inttohex(context.R12,16));
+    s.add('R13='+inttohex(context.R13,16));
+    s.add('R14='+inttohex(context.R14,16));
+    s.add('R15='+inttohex(context.R15,16));
   end;
   {$endif}
-  s.add(pref+'IP'+inttohex(context.{$ifdef cpu64}rip{$else}Eip{$endif},8));
+
 
   clipboard.astext:=s.text;
   s.free;

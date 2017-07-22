@@ -21,7 +21,7 @@ var
   bm: TBitmap;
   ng: integer;
 begin
-  if (fontmultiplication<>1.0) or (screen.PixelsPerInch<>designtimedpi) then
+  if (fontmultiplication>1.0) or (screen.PixelsPerInch<>designtimedpi) then
   begin
     sb.Transparent:=false;
     sb.Glyph.Transparent:=false;

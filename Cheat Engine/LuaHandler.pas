@@ -44,14 +44,14 @@ procedure luaL_unref(L: Plua_State; t, ref: Integer); cdecl;
 
 
 procedure Lua_RegisterObject(name: string; o: TObject);
-function CheckIfConditionIsMetContext(context: PContext; script: string): boolean;
+function CheckIfConditionIsMetContext(threadid: dword; context: PContext; script: string): boolean;
 procedure LUA_DoScript(s: string);
 function LUA_functioncall(routinetocall: string; parameters: array of const): integer;
 procedure LUA_memrec_callback(memrec: pointer; routine: string);
-procedure LUA_SetCurrentContextState(context: PContext; extraregs: boolean=false);
+procedure LUA_SetCurrentContextState(tid: dword; context: PContext; extraregs: boolean=false);
 procedure LUa_GetNewContextState(context: PContext; extraregs: boolean=false);
 
-function LUA_onBreakpoint(context: PContext; functionAlreadyPushed: boolean=false): boolean;
+function LUA_onBreakpoint(threadid: dword; context: PContext; functionAlreadyPushed: boolean=false): boolean;
 procedure LUA_onNotify(functionid: integer; sender: tobject);
 function Lua_ToString(L: Plua_State; i: Integer): string;
 function lua_ToCEUserData(L: PLua_state; i: integer): pointer;
@@ -613,12 +613,12 @@ begin
   lua_settop(LuaVM, s);
 end;
 
-function LUA_onBreakpoint(context: PContext; functionAlreadyPushed: boolean=false): boolean;
+function LUA_onBreakpoint(threadid: dword; context: PContext; functionAlreadyPushed: boolean=false): boolean;
 var p: integer;
 begin
   result:=false;
   try
-    LUA_SetCurrentContextState(context);
+    LUA_SetCurrentContextState(threadid, context);
 
 
     if not functionAlreadyPushed then
@@ -652,9 +652,12 @@ begin
   end;
 end;
 
-procedure LUA_SetCurrentContextState(context: PContext; extraregs: boolean=false);
+procedure LUA_SetCurrentContextState(tid: dword; context: PContext; extraregs: boolean=false);
 var i: integer;
 begin
+  lua_pushinteger(luavm, tid);
+  lua_setglobal(luavm, 'THREADID');
+
   {$ifdef cpu64}
   lua_pushinteger(luavm, context.{$ifdef cpu64}Rax{$else}eax{$endif});
   lua_setglobal(luavm, 'RAX');
@@ -1147,7 +1150,7 @@ begin
   end;
 end; }
 
-function CheckIfConditionIsMetContext(context: PContext; script: string): boolean;
+function CheckIfConditionIsMetContext(threadid: dword; context: PContext; script: string): boolean;
 {
 precondition: script returns a value (so already has the 'return ' part appended for single line scripts)
 }
@@ -1155,7 +1158,7 @@ var i: integer;
 begin
   result:=false;
   try
-    LUA_SetCurrentContextState(context);
+    LUA_SetCurrentContextState(threadid, context);
 
     if lua_dostring(luavm, pchar(script))=0 then
     begin
@@ -2945,7 +2948,6 @@ begin
 
     tthread.Queue(nil, lc.synchronize);
 
-    lc.free;
 
     result:=1;
   end;
@@ -2986,8 +2988,6 @@ begin
       lc.synchronizeparam:=0;
 
     tthread.Synchronize(nil, lc.synchronize);
-
-    lc.free;
 
     result:=1;
   end;
@@ -3657,7 +3657,6 @@ begin
   end
   else
   lua_pop(L, lua_gettop(l));
-
 end;
 
 function getNameFromAddress(L: PLua_state): integer; cdecl;
@@ -4663,6 +4662,15 @@ begin
   lua_pushstring(L, CheatEngineDir);
   result:=1;
 end;
+
+function lua_getCheatEngineProcessID(L: PLua_State): integer; cdecl;
+begin
+  lua_pop(L, lua_gettop(l));
+  lua_pushinteger(L, GetCurrentProcessId);
+  result:=1;
+end;
+
+
 
 function getInstructionSize(L: PLua_State): integer; cdecl;
 var parameters: integer;
@@ -6872,7 +6880,7 @@ begin
 
   if (debuggerthread<>nil) and (debuggerthread.isWaitingToContinue) and (debuggerthread.CurrentThread<>nil) then
   begin
-    LUA_SetCurrentContextState(debuggerthread.CurrentThread.context, extraregs);
+    LUA_SetCurrentContextState(debuggerthread.CurrentThread.ThreadId, debuggerthread.CurrentThread.context, extraregs);
     lua_pushboolean(L, true);
   end
   else
@@ -7679,6 +7687,7 @@ begin
   lua_speakEx(true,L);
 end;
 
+
 function lua_getFileVersion(L: Plua_State): integer; cdecl;
 var
   filepath: string;
@@ -7723,6 +7732,13 @@ begin
     end;
   end;
 end;
+
+function lua_getCheatEngineFileVersion(L: Plua_State): integer; cdecl;
+begin
+  lua_pushstring(L,application.ExeName);
+  exit(lua_getFileVersion(L));
+end;
+
 
 function lua_hookWndProc(L: Plua_State): integer; cdecl;
 var
@@ -8422,6 +8438,20 @@ begin
   end;
 end;
 
+function lua_getSystemMetrics(l: Plua_State): integer; cdecl;
+var parameters, nIndex: integer;
+begin
+  result:=0;
+  parameters:=lua_gettop(L);
+  if parameters=1 then
+  begin
+    nIndex:=lua_tointeger(L,-1);
+    lua_pop(L, parameters);
+    lua_pushinteger(L, GetSystemMetrics(nIndex));
+    result:=1;
+  end else lua_pop(L, parameters);
+end;
+
 function lua_getScreenHeight(l: Plua_State): integer; cdecl;
 begin
   lua_pushinteger(L, screen.Height);
@@ -8457,6 +8487,132 @@ begin
 
   luaclass_newClass(L, screencanvas);
   result:=1;
+end;
+
+function lua_getHandleList(L: PLua_state): integer; cdecl;
+var
+  shi: PSYSTEM_HANDLE_INFORMATION;
+  rl: ulong;
+  r: ntstatus;
+  i,j: integer;
+
+  filter: integer;
+  peprocess: ptruint;
+begin
+  i:=sizeof(SYSTEM_HANDLE_TABLE_ENTRY_INFO)+128*sizeof(SYSTEM_HANDLE_TABLE_ENTRY_INFO);
+  getmem(shi,i);
+
+  repeat
+    zeromemory(shi,i);
+    r:=NtQuerySystemInformation(SystemHandleInformation, shi,i,@rl);
+    if r=STATUS_INFO_LENGTH_MISMATCH then
+    begin
+      freemem(shi);
+      i:=i*2-2;
+      getmem(shi,i);
+    end;
+
+  until (r<>STATUS_INFO_LENGTH_MISMATCH) or (i>256*1024*1024);
+
+  if r=STATUS_INFO_LENGTH_MISMATCH then exit(0);
+  if r<>0 then exit(0);
+
+  if lua_gettop(L)>=1 then
+  begin
+    filter:=lua_tointeger(L,1);
+    //0=everything
+    //1=all handles from the opened process
+    //2=all handles to the opened process
+    //3=all handles to cheat engine
+
+    case filter of
+      2:
+      begin
+        LoadDBK32;
+        peprocess:=GetPEProcess(processid);
+      end;
+
+      3:
+      begin
+        LoadDBK32;
+        peprocess:=GetPEProcess(GetCurrentProcessId);
+        filter:=2;
+      end;
+    end;
+  end
+  else
+    filter:=0;
+
+  lua_pop(l, lua_gettop(L));
+
+
+  lua_createtable(L, shi.HandleCount,0);
+  j:=0;
+  for i:=0 to shi.HandleCount-1 do
+  begin
+    if (filter=0) or
+       ((filter=1) and (shi.list[i].ProcessId=processid)) or
+       ((filter=2) and (ptruint(shi.list[i].obj)=peprocess)) then
+    begin
+      inc(j);
+      lua_pushinteger(L,j);
+      lua_createtable(L,0,6);
+
+      lua_pushstring(L, 'ProcessID');
+      lua_pushinteger(L, shi.list[i].ProcessId );
+      lua_settable(L,-3);
+
+      lua_pushstring(L, 'ObjectTypeIndex');
+      lua_pushinteger(L, shi.list[i].ObjectTypeIndex );
+      lua_settable(L,-3);
+
+      lua_pushstring(L, 'HandleAttributes');
+      lua_pushinteger(L, shi.list[i].HandleAttributes );
+      lua_settable(L,-3);
+
+      lua_pushstring(L, 'HandleValue');
+      lua_pushinteger(L, shi.list[i].HandleValue );
+      lua_settable(L,-3);
+
+      lua_pushstring(L, 'Object');
+      lua_pushinteger(L, ptruint(shi.list[i].obj));
+      lua_settable(L,-3);
+
+      lua_pushstring(L, 'GrantedAccess');
+      lua_pushinteger(L, shi.list[i].GrantedAccess );
+      lua_settable(L,-3);
+
+      lua_settable(L,1);
+
+    end;
+  end;
+
+  result:=1;
+end;
+
+function lua_closeRemoteHandle(L: PLua_state): integer; cdecl;
+var
+  handle, newhandle: THandle;
+  ph: thandle;
+begin
+  result:=0;
+  if lua_gettop(L)>=1 then
+  begin
+    handle:=lua_tointeger(L,1);
+
+    if lua_gettop(L)>=2 then
+    begin
+      ph:=newkernelhandler.openProcess(PROCESS_DUP_HANDLE,false,lua_tointeger(L,2));
+      if ph=0 then exit
+    end
+    else
+      ph:=processhandle;
+
+    DuplicateHandle(ph, handle, 0,nil, 0, false, DUPLICATE_CLOSE_SOURCE);
+
+    if (lua_gettop(L)>=2) then
+      closehandle(ph);
+  end;
 end;
 
 
@@ -8759,6 +8915,7 @@ begin
     lua_register(L, 'allocateSharedMemory', allocateSharedMemory);
     lua_register(L, 'deallocateSharedMemory', deallocateSharedMemory);
     lua_register(L, 'getCheatEngineDir', getCheatEngineDir);
+    lua_register(L, 'getCheatEngineProcessID', lua_getCheatEngineProcessID);
 
     lua_register(L, 'disassemble', disassemble_lua);
     lua_register(L, 'splitDisassembledString', splitDisassembledString);
@@ -8944,6 +9101,8 @@ begin
     lua_register(L, 'speakEnglish', lua_speakEnglish);
 
     lua_register(L, 'getFileVersion', lua_getFileVersion);
+    lua_register(L, 'getCheatEngineFileVersion', lua_getCheatEngineFileVersion);
+
 
     lua_register(L, 'hookWndProc', lua_hookWndProc);
     lua_register(L, 'unhookWndProc', lua_unhookWndProc);
@@ -8978,6 +9137,7 @@ begin
     lua_register(L, 'mapViewOfSection',lua_MapViewOfSection);
     lua_register(L, 'unMapViewOfSection', lua_unMapViewOfSection);
 
+    lua_register(L, 'getSystemMetrics', lua_getSystemMetrics);
 
     lua_register(L, 'getScreenHeight', lua_getScreenHeight);
     lua_register(L, 'getScreenWidth', lua_getScreenWidth);
@@ -8987,6 +9147,8 @@ begin
 
 
     lua_register(L, 'getScreenCanvas', lua_getScreenCanvas);
+    lua_register(L, 'getHandleList', lua_getHandleList);
+    lua_register(L, 'closeRemoteHandle', lua_closeRemoteHandle);
 
     initializeLuaCustomControl;
 

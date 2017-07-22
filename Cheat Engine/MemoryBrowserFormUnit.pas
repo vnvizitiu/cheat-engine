@@ -1805,6 +1805,7 @@ var
   reg: tregistry;
   fd: TFontData;
 begin
+
   with TfrmMemviewPreferences.create(self) do
   begin
     fd:=Graphics.GetFontData(disassemblerview.font.handle);
@@ -2141,6 +2142,7 @@ begin
 
   scrollbox1.OnVScroll:=Scrollboxscroll;
 
+  disassemblerview.reinitialize;
 
 end;
 
@@ -2162,7 +2164,11 @@ begin
 
   newaddress:=inputboxtop(rsGotoAddress, rsFillInTheAddressYouWantToGoTo, IntTohex(old, 8), true, canceled, memorybrowserHistory);
 
-  hexview.address:=getaddress(newaddress);
+  try
+    hexview.address:=getaddress(newaddress);
+  except
+    hexview.address:=symhandler.getAddressFromName(newaddress);
+  end;
 
   if old<>hexview.address then
     hexview.history.Push(pointer(old));
@@ -2896,6 +2902,7 @@ begin
         23: regname:='ZF';
         24: regname:='SF';
         25: regname:='DF';
+        26: regname:='OF';
 
         6408..6415: regname:='R'+inttostr(i-6400);
       end;
